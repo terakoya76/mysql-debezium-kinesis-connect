@@ -42,6 +42,7 @@ public class DynamoDBOffsetBackingStore extends MemoryOffsetBackingStore {
     private String endpoint = "http://localhost:8000";
     private String region = "ap-northeast-1";
     private String instanceId = "hoge";
+    private DynamoDBMapper mapper;
 
     protected ExecutorService executor;
 

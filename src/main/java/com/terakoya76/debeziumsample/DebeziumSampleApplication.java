@@ -26,6 +26,11 @@ import com.amazonaws.services.kinesis.producer.KinesisProducer;
 import com.amazonaws.services.kinesis.producer.UserRecordFailedException;
 import com.amazonaws.services.kinesis.producer.UserRecordResult;
 
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
+import com.amazonaws.services.kinesis.AmazonKinesis;
+import com.amazonaws.services.kinesis.AmazonKinesisClientBuilder;
+import com.amazonaws.services.kinesis.model.PutRecordRequest;
+
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -50,8 +55,13 @@ public class DebeziumSampleApplication implements ApplicationRunner {
     private final Configuration config;
 
     private final JsonConverter valueConverter;
+    /*
+     * for KPL
     private final KinesisProducer producer;
+    */
+    private final AmazonKinesis kinesisClient;
     private final ExecutorService callbackThreadPool = Executors.newCachedThreadPool();
+
     // KinesisProducer.addUserRecord is asynchronous. A callback can be used to receive the results.
     private final FutureCallback<UserRecordResult> callback = new FutureCallback<UserRecordResult>() {
         @Override
@@ -102,7 +112,12 @@ public class DebeziumSampleApplication implements ApplicationRunner {
         valueConverter = new JsonConverter();
         valueConverter.configure(config.asMap(), false);
 
+        /*
+         * for KPL
         producer = KinesisProducer();
+        */
+
+        kinesisClient = AmazonKinesis();
     }
 
     public KinesisProducer KinesisProducer() {
@@ -124,6 +139,16 @@ public class DebeziumSampleApplication implements ApplicationRunner {
 
         KinesisProducer producer = new KinesisProducer(config);
         return producer;
+    }
+
+    public AmazonKinesis AmazonKinesis() {
+        AmazonKinesis amazonKinesis = AmazonKinesisClientBuilder
+                .standard()
+                .withCredentials(new ProfileCredentialsProvider("default"))
+                .withEndpointConfiguration(
+                    new EndpointConfiguration("http://localhost:4567", "ap-northeast-1"))
+                .build();
+        return amazonKinesis;
     }
 
     @Override
@@ -165,8 +190,13 @@ public class DebeziumSampleApplication implements ApplicationRunner {
     }
 
     private void cleanUp() {
+        /*
+         * for KPL
         producer.flushSync();
         producer.destroy();
+        */
+
+        kinesisClient.shutdown();
     }
 
     private void sendRecord(SourceRecord record) {
@@ -203,10 +233,19 @@ public class DebeziumSampleApplication implements ApplicationRunner {
         String partitionKey = String.valueOf(record.key() != null ? record.key().hashCode() : -1);
         final byte[] payload = valueConverter.fromConnectData("dummy", schema, message);
 
-        // TIMESTAMP is our partition key
+        /*
+         * for KPL
         ListenableFuture<UserRecordResult> f =
                 producer.addUserRecord(record.topic(), partitionKey, ByteBuffer.wrap(payload));
         Futures.addCallback(f, callback, callbackThreadPool);
+        */
+
+        PutRecordRequest putRecord = new PutRecordRequest();
+        putRecord.setStreamName(streamNameMapper(record.topic()));
+        putRecord.setPartitionKey(partitionKey);
+        putRecord.setData(ByteBuffer.wrap(payload));
+
+        kinesisClient.putRecord(putRecord);
     }
 
     private String streamNameMapper(String topic) {

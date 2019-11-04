@@ -4,7 +4,6 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
@@ -15,10 +14,10 @@ import org.apache.kafka.connect.source.SourceRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.SpringApplication;
 
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
 import com.amazonaws.services.kinesis.producer.Attempt;
@@ -35,8 +34,9 @@ import com.google.common.util.concurrent.ListenableFuture;
 import io.debezium.config.Configuration;
 import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.embedded.EmbeddedEngine;
-import io.debezium.relational.history.MemoryDatabaseHistory;
 import io.debezium.util.Clock;
+
+import com.terakoya76.debeziumsample.storage.DynamoDBDatabaseHistory;
 
 @SpringBootApplication
 public class DebeziumSampleApplication implements ApplicationRunner {
@@ -46,7 +46,9 @@ public class DebeziumSampleApplication implements ApplicationRunner {
     private static final String KINESIS_REGION_CONF_NAME = "kinesis.region";
 
     private EmbeddedEngine engine;
+
     private final Configuration config;
+
     private final JsonConverter valueConverter;
     private final KinesisProducer producer;
     private final ExecutorService callbackThreadPool = Executors.newCachedThreadPool();
@@ -76,22 +78,6 @@ public class DebeziumSampleApplication implements ApplicationRunner {
 	}
 
     public DebeziumSampleApplication() {
-        /*
-        config = Configuration.empty().withSystemProperties(Function.identity()).edit()
-                .with(EmbeddedEngine.CONNECTOR_CLASS, "io.debezium.connector.mysql.MySqlConnector")
-                .with(EmbeddedEngine.ENGINE_NAME, APP_NAME)
-                .with(MySqlConnectorConfig.SERVER_NAME,APP_NAME)
-                .with(MySqlConnectorConfig.SERVER_ID, 8192)
-
-                // for demo purposes let's store offsets and history only in memory
-                .with(EmbeddedEngine.OFFSET_STORAGE, "org.apache.kafka.connect.storage.MemoryOffsetBackingStore")
-                .with(MySqlConnectorConfig.DATABASE_HISTORY, MemoryDatabaseHistory.class.getName())
-
-                // Send JSON without schema
-                .with("schemas.enable", false)
-                .build();
-        */
-
          config = Configuration.create()
                 .with(EmbeddedEngine.CONNECTOR_CLASS, "io.debezium.connector.mysql.MySqlConnector")
                 .with(EmbeddedEngine.ENGINE_NAME, "kinesis")
@@ -104,9 +90,10 @@ public class DebeziumSampleApplication implements ApplicationRunner {
                 .with(MySqlConnectorConfig.DATABASE_WHITELIST, "inventory")
                 .with(MySqlConnectorConfig.TABLE_WHITELIST, "inventory.customers")
                 .with(EmbeddedEngine.OFFSET_STORAGE,
-                    "org.apache.kafka.connect.storage.MemoryOffsetBackingStore")
+                    "com.terakoya76.debeziumsample.storage.DynamoDBOffsetBackingStore")
                 .with(MySqlConnectorConfig.DATABASE_HISTORY,
-                    MemoryDatabaseHistory.class.getName())
+                    DynamoDBDatabaseHistory.class.getName())
+                    //MemoryDatabaseHistory.class.getName())
                 .with("schemas.enable", false)
                 .build();
 
@@ -167,7 +154,7 @@ public class DebeziumSampleApplication implements ApplicationRunner {
         config.setRecordMaxBufferedTime(2000);
 
         config.setKinesisEndpoint("localhost");
-        config.setKinesisPort(4567);
+        config.setKinesisPort(4568);
         config.setVerifyCertificate(false);
 
         // If you have built the native binary yourself, you can point the Java

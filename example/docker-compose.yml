@@ -1,0 +1,31 @@
+version: '3.7'
+services:
+  mysql:
+    image: debezium/example-mysql:1.0
+    ports:
+      - "3306:3306"
+    volumes:
+      - "./mysql/init.sql:/docker-entrypoint-initdb.d/init.sql"
+    environment:
+      MYSQL_ROOT_PASSWORD: debezium
+      MYSQL_USER: mysqluser
+      MYSQL_PASSWORD: mysqlpw
+  dynamodb:
+    build: ./dynamodb/
+    image: dynamodb:latest
+    volumes:
+      - "dynamodb-data:/dynamodb/data:delegated"
+    ports:
+      - "8000:8000"
+  kinesis:
+    build: ./kinesis-data-streams/
+    image: kinesis-data-streams:latest
+    volumes:
+      - "kinesis-data:/kinesis/data:delegated"
+    ports:
+      - "4568:4568"
+volumes:
+  dynamodb-data:
+    driver: local
+  kinesis-data:
+    driver: local

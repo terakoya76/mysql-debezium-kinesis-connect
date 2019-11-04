@@ -1,0 +1,22 @@
+database:
+  driver: mysql
+  host: 127.0.0.1
+  user: root
+  password: debezium
+  name: inventory
+  port: 3306
+tables:
+- name: customers
+  columns:
+    - name: id
+      type: int
+      primary: true
+      autoIncrement: true
+    - name: first_name
+      type: varchar
+    - name: last_name
+      type: varchar
+    - name: email
+      type: varchar
+  charset: utf8mb4
+  record: 100000

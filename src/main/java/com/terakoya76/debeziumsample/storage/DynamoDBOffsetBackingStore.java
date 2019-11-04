@@ -38,16 +38,25 @@ import com.terakoya76.debeziumsample.model.Offset;
 public class DynamoDBOffsetBackingStore extends MemoryOffsetBackingStore {
     private static final Logger LOGGER = LoggerFactory.getLogger(DynamoDBOffsetBackingStore.class);
 
+    // TODO: load from env
+    private String endpoint = "http://localhost:8000";
+    private String region = "ap-northeast-1";
+    private String instanceId = "hoge";
+
     protected ExecutorService executor;
 
-    static AmazonDynamoDB amazonDynamoDB = AmazonDynamoDBClientBuilder
-            .standard()
-            .withEndpointConfiguration(
-                new EndpointConfiguration("http://localhost:8000", "us-west-2"))
-            .build();
-    static DynamoDBMapper mapper = new DynamoDBMapper(amazonDynamoDB);
-
     public DynamoDBOffsetBackingStore() {
+    }
+
+    @Override
+    public void configure(WorkerConfig config) {
+        super.configure(config);
+        AmazonDynamoDB amazonDynamoDB = AmazonDynamoDBClientBuilder
+                .standard()
+                .withEndpointConfiguration(
+                    new EndpointConfiguration(endpoint, region))
+                .build();
+        mapper = new DynamoDBMapper(amazonDynamoDB);
     }
 
     @Override
@@ -62,7 +71,6 @@ public class DynamoDBOffsetBackingStore extends MemoryOffsetBackingStore {
             ByteBuffer key = (mapEntry.getKey() != null) ? mapEntry.getKey() : null;
             ByteBuffer value = (mapEntry.getValue() != null) ? mapEntry.getValue() : null;
 
-            String instanceId = "hoge";
             Offset offset = new Offset();
             offset.setInstanceId(instanceId);
             offset.setKey(bb2str(key, StandardCharsets.UTF_8));
@@ -74,7 +82,6 @@ public class DynamoDBOffsetBackingStore extends MemoryOffsetBackingStore {
     private void load() {
         data = new HashMap<>();
 
-        String instanceId = "hoge";
         Offset offset = mapper.load(Offset.class, instanceId);
 
         if (offset != null) {

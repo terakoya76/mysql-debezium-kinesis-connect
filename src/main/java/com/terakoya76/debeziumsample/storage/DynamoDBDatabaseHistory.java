@@ -15,31 +15,59 @@ import com.amazonaws.services.dynamodbv2.document.DynamoDB;
 import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper;
 import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBQueryExpression;
 
-import io.debezium.relational.history.AbstractDatabaseHistory;
-import io.debezium.relational.history.HistoryRecord;
+import io.debezium.config.Configuration;
+import io.debezium.config.Field;
 import io.debezium.document.DocumentReader;
 import io.debezium.document.DocumentWriter;
+import io.debezium.relational.history.AbstractDatabaseHistory;
+import io.debezium.relational.history.HistoryRecord;
+import io.debezium.relational.history.HistoryRecordComparator;
+import io.debezium.relational.history.DatabaseHistoryListener;
 
 import com.terakoya76.debeziumsample.model.History;
 
 public final class DynamoDBDatabaseHistory extends AbstractDatabaseHistory {
     private static final Logger LOGGER = LoggerFactory.getLogger(DynamoDBDatabaseHistory.class);
 
+    public static final Field ENDPOINT = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "dynamo.endpoint")
+                                               .withDescription("The Endpoint for DynamoDB")
+                                               .withValidation(Field::isRequired);
+    public static final Field REGION = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "dynamo.region")
+                                               .withDescription("The Region for DynamoDB")
+                                               .withValidation(Field::isRequired);
+    public static final Field INSTANCE_ID = Field.create(CONFIGURATION_FIELD_PREFIX_STRING + "dynamo.instance_id")
+                                               .withDescription("The InstanceID for Source MySQL")
+                                               .withValidation(Field::isRequired);
+
     private final DocumentWriter writer = DocumentWriter.defaultWriter();
     private final DocumentReader reader = DocumentReader.defaultReader();
 
-    static AmazonDynamoDB amazonDynamoDB = AmazonDynamoDBClientBuilder
+    private DynamoDBMapper mapper;
+    private String instanceId;
+
+    public DynamoDBDatabaseHistory() {
+    }
+
+    @Override
+    public void configure(Configuration config, HistoryRecordComparator comparator, DatabaseHistoryListener listener) {
+        super.configure(config, comparator, listener);
+
+        String endpoint = config.getString(ENDPOINT);
+        String region = config.getString(REGION);
+        AmazonDynamoDB amazonDynamoDB = AmazonDynamoDBClientBuilder
             .standard()
             .withEndpointConfiguration(
-                new EndpointConfiguration("http://localhost:8000", "us-west-2"))
+                new EndpointConfiguration(endpoint, region))
             .build();
-    static DynamoDBMapper mapper = new DynamoDBMapper(amazonDynamoDB);
+        mapper = new DynamoDBMapper(amazonDynamoDB);
+
+        instanceId = config.getString(INSTANCE_ID);
+    }
 
     @Override
     protected void storeRecord(HistoryRecord record) {
         try {
             String document = writer.write(record.document());
-            String instanceId = "hoge";
             History history = new History();
             history.setInstanceId(instanceId);
             history.setDocument(document);
@@ -53,7 +81,6 @@ public final class DynamoDBDatabaseHistory extends AbstractDatabaseHistory {
     protected synchronized void recoverRecords(Consumer<HistoryRecord> records) {
         History partitionKey = new History();
 
-        String instanceId = "hoge";
         partitionKey.setInstanceId(instanceId);
         DynamoDBQueryExpression<History> queryExpression = new DynamoDBQueryExpression<History>()
             .withHashKeyValues(partitionKey);
@@ -73,14 +100,11 @@ public final class DynamoDBDatabaseHistory extends AbstractDatabaseHistory {
     @Override
     public boolean exists() {
         History partitionKey = new History();
-
-        String instanceId = "hoge";
         partitionKey.setInstanceId(instanceId);
         DynamoDBQueryExpression<History> queryExpression = new DynamoDBQueryExpression<History>()
             .withHashKeyValues(partitionKey);
 
         List<History> histories = mapper.query(History.class, queryExpression);
-        LOGGER.info("{}", histories.size());
         return histories.size() > 0;
     }
 

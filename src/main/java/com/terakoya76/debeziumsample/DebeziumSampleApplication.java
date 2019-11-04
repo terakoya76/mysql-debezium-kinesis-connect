@@ -107,6 +107,7 @@ public class DebeziumSampleApplication implements ApplicationRunner {
                 .with("database.history.dynamo.region", "ap-northeast-1")
                 .with("database.history.dynamo.instance_id", "hoge")
                 .with("schemas.enable", false)
+                .with("database.history.store.only.monitored.tables.ddl", true)
                 .build();
 
         valueConverter = new JsonConverter();
